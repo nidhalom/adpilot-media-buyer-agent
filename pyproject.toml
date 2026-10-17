@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "adpilot"
+version = "0.1.0"
+description = "AdPilot - an AI media-buyer agent that analyses Meta/Google/TikTok ads exports"
+readme = "README.md"
+requires-python = ">=3.12"
+license = { text = "MIT" }
+authors = [{ name = "Nidhal Kissoum" }]
+dependencies = ["pandas>=2.2", "numpy>=1.26", "anthropic>=0.40", "fastapi>=0.110", "uvicorn>=0.29"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "httpx>=0.27"]
+
+[project.scripts]
+adpilot = "adpilot.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+adpilot = ["static/*.html"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
