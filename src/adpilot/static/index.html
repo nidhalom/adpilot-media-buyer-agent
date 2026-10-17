@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AdPilot</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root { --bg:#0f1420; --card:#171e2e; --fg:#e8ecf5; --mut:#8b95ad; --ok:#35c28a; --bad:#ef5b5b; --acc:#5b8cff; }
+  body { margin:0; font:15px/1.5 system-ui,sans-serif; background:var(--bg); color:var(--fg); }
+  header { padding:20px 24px; border-bottom:1px solid #263049; }
+  h1 { margin:0; font-size:22px; } .sub { color:var(--mut); font-size:13px; }
+  main { padding:20px 24px; max-width:1200px; margin:auto; }
+  .bar { display:flex; gap:12px; flex-wrap:wrap; align-items:center; margin-bottom:16px; }
+  button, input { background:var(--card); color:var(--fg); border:1px solid #2c3858; padding:8px 12px; border-radius:6px; }
+  button { cursor:pointer; background:var(--acc); border-color:var(--acc); }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(420px,1fr)); gap:16px; }
+  .card { background:var(--card); border-radius:10px; padding:16px; }
+  .kpis { display:flex; gap:12px; flex-wrap:wrap; margin-bottom:16px; }
+  .kpi { background:var(--card); padding:10px 16px; border-radius:10px; min-width:110px; }
+  .kpi b { display:block; font-size:20px; } .kpi span { color:var(--mut); font-size:12px; }
+  pre { white-space:pre-wrap; font-size:13px; } .warn { color:var(--mut); font-size:12px; }
+  @media (max-width:520px){ .grid { grid-template-columns:1fr; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>AdPilot <span class="sub">- AI media-buyer agent. Recommends only; never touches live ad accounts.</span></h1>
+</header>
+<main>
+  <div class="bar">
+    <label>Gross margin <input id="margin" type="number" step="0.01" min="0.01" max="1" value="0.35" style="width:80px"></label>
+    <input id="file" type="file" accept=".csv">
+    <button id="run">Analyse CSV</button>
+    <button id="sample">Use SYNTHETIC sample</button>
+    <span id="status" class="sub"></span>
+  </div>
+  <div class="kpis" id="kpis"></div>
+  <div class="grid">
+    <div class="card"><h3>Spend vs ROAS (per ad)</h3><canvas id="scatter"></canvas>
+      <div class="warn">Line = break-even ROAS. Below the line the ad loses money after margin.</div></div>
+    <div class="card"><h3>Creative fatigue (rolling 7-day CTR)</h3><canvas id="fatigue"></canvas></div>
+  </div>
+  <div class="card" style="margin-top:16px"><h3>Report</h3><pre id="report">Load the sample or a CSV.</pre></div>
+</main>
+<script>
+let charts = {};
+const $ = id => document.getElementById(id);
+const COLORS = ['#5b8cff','#35c28a','#ef5b5b','#f2b33d','#b67bff','#3dd5e0'];
+async function show(data) {
+  const o = data.overall;
+  $('kpis').innerHTML = [['Spend', o.spend.toLocaleString()], ['ROAS', o.roas], ['Break-even', data.breakeven_roas],
+    ['CPA', o.cpa], ['CTR', (o.ctr*100).toFixed(2)+'%'], ['CVR', (o.cvr*100).toFixed(2)+'%'], ['Mode', data.mode]]
+    .map(([k,v]) => `<div class="kpi"><b>${v}</b><span>${k}</span></div>`).join('');
+  Object.values(charts).forEach(c => c.destroy());
+  const be = data.breakeven_roas;
+  const maxSpend = Math.max(...data.ads.map(a => a.spend));
+  charts.scatter = new Chart($('scatter'), { type:'scatter', data:{ datasets:[
+    { label:'ads', data:data.ads.map(a => ({x:a.spend, y:a.roas, ad:a.ad})),
+      backgroundColor:data.ads.map(a => a.roas >= be ? '#35c28a' : '#ef5b5b'), pointRadius:6 },
+    { label:'break-even', type:'line', data:[{x:0,y:be},{x:maxSpend,y:be}], borderColor:'#f2b33d', borderDash:[6,4], pointRadius:0 }]},
+    options:{ plugins:{ tooltip:{ callbacks:{ label:c => `${c.raw.ad||'break-even'}: spend ${c.raw.x}, ROAS ${c.raw.y}` }}},
+      scales:{ x:{title:{display:true,text:'Spend'}}, y:{title:{display:true,text:'ROAS'}} } } });
+  charts.fatigue = new Chart($('fatigue'), { type:'line', data:{
+    labels:(data.fatigue[0]||{series:[]}).series.map(p => p.date),
+    datasets:data.fatigue.map((f,i) => ({ label:`${f.ad} (${f.status})`, data:f.series.map(p => p.ctr*100),
+      borderColor:COLORS[i%COLORS.length], tension:.25, pointRadius:0 }))},
+    options:{ scales:{ y:{title:{display:true,text:'rolling CTR %'}} } } });
+  $('report').textContent = data.report_md;
+}
+async function go(p, opts) {
+  $('status').textContent = 'working...';
+  try { const r = await fetch(p, opts); if (!r.ok) throw new Error((await r.json()).detail); await show(await r.json()); $('status').textContent = ''; }
+  catch (e) { $('status').textContent = 'error: ' + e.message; }
+}
+$('sample').onclick = () => go('/api/sample?margin=' + $('margin').value);
+$('run').onclick = async () => {
+  const f = $('file').files[0]; if (!f) { $('status').textContent = 'choose a CSV first'; return; }
+  go('/api/analyze?margin=' + $('margin').value, { method:'POST', body: await f.text() });
+};
+</script>
+</body>
+</html>
