@@ -1,3 +1,5 @@
+<p align="center"><img src="assets/banner.svg" alt="AdPilot — Your AI media buyer" width="100%"></p>
+
 # AdPilot - an AI media-buyer agent
 
 Drop in your Meta / Google / TikTok ads export and get a media buyer's analysis: **what to kill, what to scale, which creatives are fatigued, how to move budget, and new hooks to test.** AdPilot is an agent built on Claude (`claude-opus-5-5`) that decides which analysis tools to call and writes the report. With no API key it runs a deterministic offline planner so you can try it in seconds.
